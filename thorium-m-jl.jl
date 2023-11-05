@@ -55,15 +55,21 @@ function decode(c,q)
     p
 end
 
-function auto_spin(q,c)
+function autospin(q,c)
     k = copy(q)
     for i in 1:n Bool(q[i,c]) ? k[i,:] = spin_row(k,i) : k[:,i] = spin_col(k,i) end
     k
 end
 
+function self(q)
+    k = copy(q)
+    for i in 1:n k[i,:] = encrypt(q[i,:],q,n) end
+    k
+end
+
 function encrypt(p, q, r)
     for i in 1:r
-        k = auto_spin(q, mod1(i,n))
+        k = autospin(q, mod1(i,n))
         p = encode(p,k)
         p = reverse(p)
     end
@@ -73,7 +79,7 @@ end
 
 function decrypt(p, q, r)
     for i in 1:r
-        k = auto_spin(q,mod1(r + 1 - i,n))
+        k = autospin(q,mod1(r + 1 - i,n))
         p = reverse(p)
         p = decode(p,k)
     end
@@ -113,11 +119,80 @@ function long_demo()
     end
     print(white())
 end
+function key_eating_demo()
+    q = copy(k)
+    print(white(),"k =\n", gray(150))
+    print_key(k)
+    for i in 1:n
+    	p = k[i,:]
+        print(white(),"f( ", red(), str(p,""), white()," ) = ")
+        c  = encrypt(p,k,r)
+        q[i,:] = c
+        print(yellow(),str(c,""), "  ")
+        e = p .== c
+        print(gray(100),str(e,""), " \n")
+        d  = decrypt(c,k,r)
+        if p != d @printf "ERROR" end 	
+    end
+    print("\n")
+    print(white(),"q =\n", gray(150))
+    print_key(q)
+    for i in 1:n
+    	p = q[i,:]
+        print(white(),"f( ", red(), str(p,""), white()," ) = ")
+        c  = encrypt(p,q,r)
+        k[i,:] = c
+        print(yellow(),str(c,""), "  ")
+        e = p .== c
+        print(gray(100),str(e,""), " \n")
+        d  = decrypt(c,q,r)
+        if p != d @printf "ERROR" end 	
+    end
+    print(white())
+end
 
+function key_eating_demo_2()
+    q = copy(k)
+    for _ in 1:4
+        for i in 1:n
+            p = k[i,:]
+            print(white(),"f( ", red(), str(p," "), white()," ) = ")
+            c  = encrypt(p,k,r)
+            q[i,:] = c
+            print(yellow(),str(c," "), "  ")
+            e = p .== c
+            print(gray(100),str(e," "), " \n")
+            d  = decrypt(c,k,r)
+            if p != d @printf "ERROR" end 	
+        end
+        print("\n")
+        for i in 1:n
+            p = q[i,:]
+            print(white(),"f( ", red(), str(p," "), white()," ) = ")
+            c  = encrypt(p,q,r)
+            k[i,:] = c
+            print(yellow(),str(c," "), "  ")
+            e = p .== c
+            print(gray(100),str(e," "), " \n")
+            d  = decrypt(c,q,r)
+            if p != d @printf "ERROR" end 	
+        end
+        print("\n")
+    end
+    print(white())
+end
 
-n = 16
-r = 64
+function self_demo(k)
+    for i in 1:n
+        print_key(k)
+        print("\n")
+        k =  self(k)
+    end
+end
+
+n = 8
+r = n
 k = key(n)
 t = 128
 w = 4
-long_demo()
+self_demo(k)

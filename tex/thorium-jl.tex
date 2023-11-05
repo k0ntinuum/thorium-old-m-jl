@@ -30,60 +30,73 @@
 {\setstretch{0.0}{
 
 
-\b{Thorium} is a specialized binary version of Cesium. It uses $n \times n$  matrix of bits as a key. The trace of the matrix is added (mod 2) to the plaintext bit to get the ciphertext bit. The key matrix is then \q{shredded} as a function of its current diagonal and the processed plaintext bit.
-
+\b{Thorium-M} is a specialized binary version of Cesium, and a simpler variant of the Thorium idea. It uses $n \times n$  matrix of bits as a key. The trace of the matrix is added (mod 2) to the plaintext bit to get the ciphertext bit. The key matrix is adjusted as a function of the plaintext bit. In Thorium-m, only one row or column is adjusted per bit of plaintext, so Thorium-m is faster, without any obvious loss of security. 
 
 Here's the encoding function: 
 
 
 \begin{verbatim}
+spin_row(k,i) = circshift(k[i,:], k[i,i]  + 1)
+spin_col(k,i) = circshift(k[:,i], k[i,i]  + 1)
+
 function encode(p,q)
     k = copy(q)
     c = Bool[]
     for i in eachindex(p)
         push!(c,Bool((tr(k) + p[i])%2))
-        k = spin(k,p[i])
+        if  Bool(p[i]) 
+            k[mod1(i,n),:] = spin_row(k,mod1(i,n))
+        else 
+            k[:,mod1(i,n)] = spin_col(k,mod1(i,n))
+        end
     end
     c
 end
 
 \end{verbatim}
 
-It's crucial that the key evolve as a function of the plaintext, or we could have just used a simple masking bit-vector to begin with. Here's the update of the key. Note that Julia gives us a convenient circular shift of rows or columns as needed. 
+The autospin function of the \q{m} version of Thorium is also gentler and less expensive. It uses bits from the key (column by column) to update itself as if by plaintext bits, one column at a time. 
 
 \begin{verbatim}
-spin_row(k,i,p) = circshift(k[i,:], k[i,i] + p + 1)
 
-spin_col(k,i,p) = circshift(k[:,i], k[i,i] + p + 1)
 
-function spin(q,p)
+function autospin(q,c)
     k = copy(q)
-    for j in 1:n[begin]
-        if  Bool((j+p)%2) 
-            k[j,:] = spin_row(k, j, p)
-        else 
-            k[:,j] = spin_col(k, j, p)
-        end
+    for i in 1:n Bool(q[i,c]) ? k[i,:] = spin_row(k,i) : k[:,i] = spin_col(k,i) end
+    k
+end
+
+\end{verbatim}
+
+
+Note that all shifts are by one unit, so the plaintext determines only the order of the shifts ( such as \q{row, row, col} versus \q{col, row, col} and so on.)
+
+The point of \b{autospin} is to meet each round with a different version of the key. Decryption requires using these keystates in reverse order. 
+
+\begin{verbatim}
+
+function encrypt(p, q, r)
+    for i in 1:r
+        k = autospin(q, mod1(i,n))
+        p = encode(p,k)
+        p = reverse(p)
     end
-    k
+    p
+end
+
+
+function decrypt(p, q, r)
+    for i in 1:r
+        k = autospin(q,mod1(r + 1 - i,n))
+        p = reverse(p)
+        p = decode(p,k)
+    end
+    p
 end
 
 \end{verbatim}
 
-You can see that $n$ spins are performed, alternating between rows or columns. The bit $p$ determines whether rows or columns go first, \b{and} this bit boosts (or not) every such spin. 
-
-
-For encryption there's also an \q{autospin} feature that prepares a different evolution of the key for each round. The columns of the key are fed like $n$ plaintext bits to guide this evolution.
-
-\begin{verbatim}
-
-function auto_spin(q,c)
-    k = copy(q)
-    for i in 1:n  k = spin(k,k[c,i]) end
-    k
-end
-
-\end{verbatim}
+The \q{official} (ideal) version sets the rounds equal to $n$. This gives us a well defined function $f_k$ with only $k$ for a parameter. Likewise we have $f^{-1}_k$.
 
 
 }}
